@@ -27,7 +27,9 @@ Abre `http://localhost:3000`.
 
 El acceso habitual utiliza correo y contraseña. Supabase solo envía correos para confirmar una cuenta nueva o crear/recuperar una contraseña; `/auth/confirm` intercambia esos enlaces por una sesión segura.
 
-Si Supabase devuelve excepcionalmente el parámetro `?code=` a la página principal, el middleware lo reenvía a `/auth/confirm` y limpia la URL al finalizar la autenticación.
+Si Supabase devuelve excepcionalmente el parámetro `?code=` a la página principal, el middleware lo reenvía al callback de confirmación o recuperación correspondiente y limpia la URL al finalizar la autenticación.
+
+Durante una recuperación, una cookie temporal y no sensible permite distinguir ese enlace de un acceso normal y redirigirlo a `/account/password`. La cookie vence en una hora y se elimina al procesar el enlace.
 
 Nunca coloques una clave `service_role` en estas variables ni en el navegador.
 

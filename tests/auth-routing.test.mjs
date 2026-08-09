@@ -20,7 +20,8 @@ test("recupera enlaces que Supabase envía por error a la raíz", async () => {
   const source = await readFile(new URL("../lib/supabase/middleware.js", import.meta.url), "utf8");
 
   assert.match(source, /pathname === "\/" && authorizationCode/);
-  assert.match(source, /new URL\("\/auth\/confirm", request\.url\)/);
+  assert.match(source, /mvm_recovery_pending/);
+  assert.match(source, /isPasswordRecovery \? "\/auth\/recover" : "\/auth\/confirm"/);
   assert.match(source, /searchParams\.set\("code", authorizationCode\)/);
 });
 
@@ -30,8 +31,10 @@ test("la recuperación usa una ruta separada para crear la contraseña", async (
 
   assert.match(login, /resetPasswordForEmail/);
   assert.match(login, /\/auth\/recover/);
+  assert.match(login, /mvm_recovery_pending=1/);
   assert.match(recovery, /exchangeCodeForSession/);
   assert.match(recovery, /\/account\/password/);
+  assert.match(recovery, /cookies\.delete\("mvm_recovery_pending"\)/);
 });
 
 test("el acceso habitual usa contraseña y no solicita enlaces mágicos", async () => {

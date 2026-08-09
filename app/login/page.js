@@ -37,6 +37,7 @@ export default function LoginPage() {
         setError(getAuthErrorMessage(authError, view));
         return;
       }
+      document.cookie = "mvm_recovery_pending=1; Path=/; Max-Age=3600; SameSite=Lax; Secure";
       setEmailSent(true);
       setMessage(`Enviamos las instrucciones a ${email.trim()}.`);
       return;
