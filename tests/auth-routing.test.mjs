@@ -44,3 +44,10 @@ test("el acceso habitual usa contraseña y no solicita enlaces mágicos", async 
   assert.match(login, /auth\.signUp/);
   assert.doesNotMatch(login, /signInWithOtp/);
 });
+
+test("no anuncia un correo de registro para una cuenta que ya existe", async () => {
+  const login = await readFile(new URL("../app/login/page.js", import.meta.url), "utf8");
+
+  assert.match(login, /data\.user\.identities\.length === 0/);
+  assert.match(login, /Este correo ya está registrado/);
+});

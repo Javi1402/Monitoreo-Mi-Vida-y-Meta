@@ -54,6 +54,10 @@ export default function LoginPage() {
         setError(getAuthErrorMessage(authError, view));
         return;
       }
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError("Este correo ya está registrado. Pulsa “Iniciar sesión” y luego “¿Aún no tienes contraseña? Créala aquí”.");
+        return;
+      }
       if (data.session) {
         router.replace("/");
         router.refresh();
