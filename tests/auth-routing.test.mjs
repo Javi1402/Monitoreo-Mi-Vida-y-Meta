@@ -15,3 +15,11 @@ test("el formulario envía el retorno a la ruta de confirmación", async () => {
   assert.match(source, /emailRedirectTo: `\$\{window\.location\.origin\}\/auth\/confirm`/);
   assert.doesNotMatch(source, /verifyOtp/);
 });
+
+test("recupera enlaces que Supabase envía por error a la raíz", async () => {
+  const source = await readFile(new URL("../lib/supabase/middleware.js", import.meta.url), "utf8");
+
+  assert.match(source, /pathname === "\/" && authorizationCode/);
+  assert.match(source, /new URL\("\/auth\/confirm", request\.url\)/);
+  assert.match(source, /searchParams\.set\("code", authorizationCode\)/);
+});

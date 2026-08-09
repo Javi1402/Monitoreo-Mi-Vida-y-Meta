@@ -27,6 +27,8 @@ Abre `http://localhost:3000`.
 
 El correo predeterminado de Supabase contiene un enlace mágico de un solo uso. Al abrirlo, `/auth/confirm` intercambia el código de autorización por una sesión y dirige al usuario a MVM.
 
+Si Supabase devuelve excepcionalmente el parámetro `?code=` a la página principal, el middleware lo reenvía a `/auth/confirm` y limpia la URL al finalizar la autenticación.
+
 Nunca coloques una clave `service_role` en estas variables ni en el navegador.
 
 ## Crear la base de datos
