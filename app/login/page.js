@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getAuthErrorMessage } from "../../lib/auth-errors.mjs";
 import { createClient, isSupabaseConfigured } from "../../lib/supabase/client";
 
 export default function LoginPage() {
@@ -34,9 +35,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (authError) {
-      setError(view === "login"
-        ? "No pudimos enviar el enlace. Verifica que la cuenta esté registrada y vuelve a intentarlo."
-        : "No pudimos crear la cuenta. Revisa el correo e inténtalo nuevamente.");
+      setError(getAuthErrorMessage(authError, view));
       return;
     }
 
