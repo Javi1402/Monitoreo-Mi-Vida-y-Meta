@@ -13,9 +13,29 @@ Abre `http://localhost:3000`.
 
 ## Estado actual
 
-- Los movimientos visibles son datos ficticios de demostración.
+- La aplicación inicia sin sueldo, movimientos, deuda ni fechas precargadas.
 - Los datos solo viven en el estado temporal del navegador y se reinician al recargar.
-- Esta versión todavía no está conectada a Supabase, no tiene autenticación y no está publicada.
+- La interfaz financiera está protegida por autenticación mediante enlace de acceso por correo de Supabase.
+- Sin las variables públicas de Supabase, el acceso permanece bloqueado y muestra una explicación de configuración pendiente.
+- El despliegue piloto está publicado en Vercel, pero todavía no persiste movimientos en Supabase.
+
+## Configurar autenticación
+
+1. Copia `.env.example` como `.env.local`.
+2. Completa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores públicos del proyecto.
+3. En Supabase Auth habilita el proveedor Email y autoriza la URL `/auth/confirm` del despliegue.
+
+El correo predeterminado de Supabase contiene un enlace mágico de un solo uso. Al abrirlo, `/auth/confirm` intercambia el código de autorización por una sesión y dirige al usuario a MVM.
+
+Nunca coloques una clave `service_role` en estas variables ni en el navegador.
+
+## Crear la base de datos
+
+1. Abre **Supabase → SQL Editor → New query**.
+2. Copia y ejecuta completo `supabase/migrations/20260809180000_initial_schema.sql`.
+3. Verifica que el resultado indique **Success** antes de conectar la interfaz.
+
+La migración crea perfiles, periodos, categorías, tarjeta, movimientos, pagos recurrentes y alertas. También activa RLS en todas las tablas personales, crea políticas basadas en `auth.uid()` e inicializa tanto usuarios nuevos como usuarios existentes.
 
 ## Fórmula del límite diario
 

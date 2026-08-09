@@ -48,3 +48,19 @@ test("clasifica la proyección con metas mínima e ideal variables", () => {
   assert.equal(yellow.status, "yellow");
   assert.equal(red.status, "red");
 });
+
+test("mantiene pendientes los cálculos diarios cuando no existe un periodo configurado", () => {
+  const result = calculateFinance({
+    salary: "",
+    minimumGoal: 300,
+    idealGoal: 500,
+    nextPayDate: "",
+    movements: [],
+    today: base.today,
+  });
+
+  assert.equal(result.hasActivePeriod, false);
+  assert.equal(result.remainingDays, null);
+  assert.equal(result.dailyLimit, null);
+  assert.equal(result.cardDebt, 0);
+});
