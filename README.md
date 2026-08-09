@@ -29,6 +29,14 @@ El correo predeterminado de Supabase contiene un enlace mágico de un solo uso. 
 
 Nunca coloques una clave `service_role` en estas variables ni en el navegador.
 
+## Crear la base de datos
+
+1. Abre **Supabase → SQL Editor → New query**.
+2. Copia y ejecuta completo `supabase/migrations/20260809180000_initial_schema.sql`.
+3. Verifica que el resultado indique **Success** antes de conectar la interfaz.
+
+La migración crea perfiles, periodos, categorías, tarjeta, movimientos, pagos recurrentes y alertas. También activa RLS en todas las tablas personales, crea políticas basadas en `auth.uid()` e inicializa tanto usuarios nuevos como usuarios existentes.
+
 ## Fórmula del límite diario
 
 ```text
