@@ -15,7 +15,17 @@ Abre `http://localhost:3000`.
 
 - La aplicación inicia sin sueldo, movimientos, deuda ni fechas precargadas.
 - Los datos solo viven en el estado temporal del navegador y se reinician al recargar.
-- Esta versión todavía no está conectada a Supabase, no tiene autenticación y no está publicada.
+- La interfaz financiera está protegida por autenticación con código de correo de Supabase.
+- Sin las variables públicas de Supabase, el acceso permanece bloqueado y muestra una explicación de configuración pendiente.
+- Esta versión todavía no persiste movimientos en Supabase y no está publicada.
+
+## Configurar autenticación
+
+1. Copia `.env.example` como `.env.local`.
+2. Completa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores públicos del proyecto.
+3. En Supabase Auth habilita el proveedor Email y configura la plantilla para incluir el token de verificación.
+
+Nunca coloques una clave `service_role` en estas variables ni en el navegador.
 
 ## Fórmula del límite diario
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { calculateFinance } from "../lib/finance.mjs";
+import { createClient } from "../lib/supabase/client";
 
 const money = new Intl.NumberFormat("es-PE", {
   style: "currency",
@@ -40,6 +42,7 @@ function Icon({ children }) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [theme, setTheme] = useState("dark");
   const [tab, setTab] = useState("home");
   const [salary, setSalary] = useState("");
@@ -50,6 +53,14 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({ type: "expense", amount: "", category: "", method: "", date: todayInPeru(), description: "" });
   const finance = useMemo(() => calculateFinance({ salary, minimumGoal, idealGoal, nextPayDate, movements }), [salary, minimumGoal, idealGoal, nextPayDate, movements]);
+
+  async function signOut() {
+    const supabase = createClient();
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   function saveMovement(event) {
     event.preventDefault();
@@ -74,7 +85,7 @@ export default function Home() {
       <div className="app-shell">
         <header>
           <div className="brand"><div className="logo">⌁</div><div><strong>MVM</strong><span>Mi Vida y Meta</span></div></div>
-          <button className="theme-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Cambiar tema"><Icon>{theme === "dark" ? "☾" : "☀"}</Icon>{theme === "dark" ? "Oscuro" : "Claro"}</button>
+          <div className="header-actions"><button className="theme-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Cambiar tema"><Icon>{theme === "dark" ? "☾" : "☀"}</Icon>{theme === "dark" ? "Oscuro" : "Claro"}</button><button className="logout-button" onClick={signOut}>Salir</button></div>
         </header>
 
         {tab === "home" && <section className="screen">
