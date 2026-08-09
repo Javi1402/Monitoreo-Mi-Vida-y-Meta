@@ -1,0 +1,5 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import AuthScreen, { ErrorMessage, PrimaryButton } from "../../components/AuthScreen";
+import { supabase } from "../../lib/supabase";
+export default function Confirm() { const { code } = useLocalSearchParams(); const router = useRouter(); const [error, setError] = useState(""); useEffect(() => { async function confirm() { if (!code || !supabase) return setError("El enlace de confirmación no es válido."); const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(String(code)); if (exchangeError) return setError("El enlace venció o ya fue utilizado."); await supabase.auth.signOut(); router.replace("/login"); } confirm(); }, [code, router]); return <AuthScreen eyebrow="CONFIRMANDO" title="Verificando tu correo" description="Espera un momento mientras confirmamos tu cuenta."><ErrorMessage>{error}</ErrorMessage>{error && <PrimaryButton title="Volver al registro" onPress={() => router.replace("/registro")} />}</AuthScreen>; }

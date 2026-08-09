@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function TermsPage() { return <main className="dark legal-page"><article className="legal-card"><p className="eyebrow">INFORMACIÓN LEGAL</p><h1>Términos de uso</h1><p>Esta versión preliminar de Monitoreo Vida y Meta ofrece herramientas personales de organización financiera y no constituye asesoría financiera profesional.</p><p>Antes del lanzamiento público se incorporarán los términos definitivos y su fecha de vigencia.</p><Link className="back-link" href="/login">← Volver al registro</Link></article></main>; }
