@@ -15,15 +15,17 @@ Abre `http://localhost:3000`.
 
 - La aplicación inicia sin sueldo, movimientos, deuda ni fechas precargadas.
 - Los datos solo viven en el estado temporal del navegador y se reinician al recargar.
-- La interfaz financiera está protegida por autenticación con código de correo de Supabase.
+- La interfaz financiera está protegida por autenticación mediante enlace de acceso por correo de Supabase.
 - Sin las variables públicas de Supabase, el acceso permanece bloqueado y muestra una explicación de configuración pendiente.
-- Esta versión todavía no persiste movimientos en Supabase y no está publicada.
+- El despliegue piloto está publicado en Vercel, pero todavía no persiste movimientos en Supabase.
 
 ## Configurar autenticación
 
 1. Copia `.env.example` como `.env.local`.
 2. Completa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores públicos del proyecto.
-3. En Supabase Auth habilita el proveedor Email y configura la plantilla para incluir el token de verificación.
+3. En Supabase Auth habilita el proveedor Email y autoriza la URL `/auth/confirm` del despliegue.
+
+El correo predeterminado de Supabase contiene un enlace mágico de un solo uso. Al abrirlo, `/auth/confirm` intercambia el código de autorización por una sesión y dirige al usuario a MVM.
 
 Nunca coloques una clave `service_role` en estas variables ni en el navegador.
 
