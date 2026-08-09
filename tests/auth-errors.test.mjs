@@ -22,3 +22,10 @@ test("entrega una referencia segura para errores no reconocidos", () => {
   assert.match(result, /unexpected_failure/);
   assert.match(result, /Authentication → Logs/);
 });
+
+test("explica cómo crear contraseña a una cuenta de enlace anterior", () => {
+  const result = getAuthErrorMessage({ code: "invalid_credentials" }, "login");
+
+  assert.match(result, /correo o la contraseña/);
+  assert.match(result, /Créala aquí/);
+});

@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  let response = NextResponse.redirect(new URL(code ? "/" : "/login?error=missing_code", request.url));
+  const requestedPath = requestUrl.searchParams.get("next");
+  const nextPath = requestedPath?.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : "/";
+  let response = NextResponse.redirect(new URL(code ? nextPath : "/login?error=missing_code", request.url));
 
   if (!code) {
     return response;

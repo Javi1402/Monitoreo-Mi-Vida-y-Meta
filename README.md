@@ -23,9 +23,9 @@ Abre `http://localhost:3000`.
 
 1. Copia `.env.example` como `.env.local`.
 2. Completa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con los valores públicos del proyecto.
-3. En Supabase Auth habilita el proveedor Email y autoriza la URL `/auth/confirm` del despliegue.
+3. En Supabase Auth habilita el proveedor Email y autoriza las URLs `/auth/confirm` y `/auth/recover` del despliegue.
 
-El correo predeterminado de Supabase contiene un enlace mágico de un solo uso. Al abrirlo, `/auth/confirm` intercambia el código de autorización por una sesión y dirige al usuario a MVM.
+El acceso habitual utiliza correo y contraseña. Supabase solo envía correos para confirmar una cuenta nueva o crear/recuperar una contraseña; `/auth/confirm` intercambia esos enlaces por una sesión segura.
 
 Si Supabase devuelve excepcionalmente el parámetro `?code=` a la página principal, el middleware lo reenvía a `/auth/confirm` y limpia la URL al finalizar la autenticación.
 
