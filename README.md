@@ -25,6 +25,7 @@ Abre `http://localhost:3000`.
 - La sesión se conserva automáticamente en web y en el dispositivo móvil.
 - Sin las variables públicas de Supabase, el acceso permanece bloqueado y muestra una explicación de configuración pendiente.
 - El despliegue piloto está publicado en Vercel, pero todavía no persiste movimientos en Supabase.
+- La planificación del periodo sí guarda ingreso, fecha inicial, metas y configuración opcional de tarjeta en Supabase.
 
 ## Configurar autenticación
 
@@ -60,15 +61,16 @@ Completa `.env` con `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_PUBLISHAB
 1. Abre **Supabase → SQL Editor → New query**.
 2. Copia y ejecuta completo `supabase/migrations/20260809180000_initial_schema.sql`.
 3. Verifica que el resultado indique **Success** antes de conectar la interfaz.
+4. Ejecuta después `supabase/migrations/20260810120000_configurable_credit_card.sql` para habilitar la línea bancaria, el límite personal y el día mensual de pago.
 
-La migración crea perfiles, periodos, categorías, tarjeta, movimientos, pagos recurrentes y alertas. También activa RLS en todas las tablas personales, crea políticas basadas en `auth.uid()` e inicializa tanto usuarios nuevos como usuarios existentes.
+Las migraciones crean perfiles, periodos, categorías, tarjeta, movimientos, pagos recurrentes y alertas. También activan RLS, crean políticas basadas en `auth.uid()` y evitan crear una tarjeta ficticia para usuarios que no declararon tenerla.
 
 ## Fórmula del límite diario
 
 ```text
 saldo_real = ingreso_principal_confirmado + ingresos_extra - gastos
 disponible_sin_afectar_meta_ideal = max(0, saldo_real - meta_ideal_del_periodo)
-límite_diario = disponible_sin_afectar_meta_ideal / días_hasta_próximo_pago_estimado
+límite_personal_disponible_tarjeta = max(0, límite_personal - deuda_de_tarjeta)
 ```
 
 El pago de tarjeta reduce la deuda, pero no vuelve a contabilizar como gasto una compra que ya fue registrada.

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migrationUrl = new URL("../supabase/migrations/20260809180000_initial_schema.sql", import.meta.url);
+const cardMigrationUrl = new URL("../supabase/migrations/20260810120000_configurable_credit_card.sql", import.meta.url);
 
 test("activa RLS y crea una política para cada tabla personal", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -14,6 +15,20 @@ test("activa RLS y crea una política para cada tabla personal", async () => {
   }
 });
 
+test("permite una línea bancaria y un límite personal configurables", async () => {
+  const sql = await readFile(cardMigrationUrl, "utf8");
+  assert.match(sql, /personal_spending_limit numeric\(12,2\)/);
+  assert.match(sql, /personal_spending_limit <= credit_limit/);
+  assert.match(sql, /payment_day between 1 and 31/);
+  assert.match(sql, /drop constraint if exists credit_cards_credit_limit_check/);
+});
+
+test("no crea una tarjeta automática para cuentas nuevas", async () => {
+  const sql = await readFile(cardMigrationUrl, "utf8");
+  const replacement = sql.slice(sql.indexOf("create or replace function public.initialize_user_data"));
+  assert.doesNotMatch(replacement, /insert into public\.credit_cards/);
+});
+
 test("vincula los registros relacionados al mismo propietario", async () => {
   const sql = await readFile(migrationUrl, "utf8");
 
@@ -23,7 +38,7 @@ test("vincula los registros relacionados al mismo propietario", async () => {
 });
 
 test("no incluye credenciales administrativas", async () => {
-  const sql = await readFile(migrationUrl, "utf8");
+  const sql = `${await readFile(migrationUrl, "utf8")}\n${await readFile(cardMigrationUrl, "utf8")}`;
 
   assert.doesNotMatch(sql, /service_role/i);
 });

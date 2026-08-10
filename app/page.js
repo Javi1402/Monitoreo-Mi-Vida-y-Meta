@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { calculateFinance } from "../lib/finance.mjs";
 import { createClient } from "../lib/supabase/client";
@@ -46,13 +46,82 @@ export default function Home() {
   const [theme, setTheme] = useState("dark");
   const [tab, setTab] = useState("home");
   const [salary, setSalary] = useState("");
+  const [periodStart, setPeriodStart] = useState(todayInPeru());
   const [minimumGoal, setMinimumGoal] = useState(300);
   const [idealGoal, setIdealGoal] = useState(500);
-  const [nextPayDate, setNextPayDate] = useState("");
+  const [hasCreditCard, setHasCreditCard] = useState(false);
+  const [creditLimit, setCreditLimit] = useState("");
+  const [personalCardLimit, setPersonalCardLimit] = useState("");
+  const [paymentDay, setPaymentDay] = useState("");
+  const [periodId, setPeriodId] = useState(null);
+  const [cardId, setCardId] = useState(null);
+  const [setupStatus, setSetupStatus] = useState({ loading: true, saving: false, error: "", success: "" });
   const [movements, setMovements] = useState(initialMovements);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({ type: "expense", amount: "", category: "", method: "", date: todayInPeru(), description: "" });
-  const finance = useMemo(() => calculateFinance({ salary, minimumGoal, idealGoal, nextPayDate, movements }), [salary, minimumGoal, idealGoal, nextPayDate, movements]);
+  const finance = useMemo(() => calculateFinance({ salary, minimumGoal, idealGoal, movements, creditLimit: hasCreditCard ? creditLimit : 0, personalCardLimit: hasCreditCard ? personalCardLimit : 0 }), [salary, minimumGoal, idealGoal, movements, hasCreditCard, creditLimit, personalCardLimit]);
+
+  useEffect(() => {
+    async function loadSetup() {
+      const supabase = createClient();
+      if (!supabase) return setSetupStatus((current) => ({ ...current, loading: false }));
+      const [{ data: period, error: periodError }, { data: card, error: cardError }] = await Promise.all([
+        supabase.from("financial_periods").select("id,start_date,opening_income,minimum_saving_goal,ideal_saving_goal").eq("status", "open").maybeSingle(),
+        supabase.from("credit_cards").select("id,credit_limit,personal_spending_limit,payment_day,is_active").eq("is_active", true).maybeSingle(),
+      ]);
+      if (periodError || cardError) {
+        setSetupStatus({ loading: false, saving: false, success: "", error: "No pudimos cargar tu planificación desde Supabase." });
+        return;
+      }
+      if (period) {
+        setPeriodId(period.id); setPeriodStart(period.start_date); setSalary(String(period.opening_income));
+        setMinimumGoal(Number(period.minimum_saving_goal)); setIdealGoal(Number(period.ideal_saving_goal));
+      }
+      if (card) {
+        setCardId(card.id); setHasCreditCard(true); setCreditLimit(String(card.credit_limit));
+        setPersonalCardLimit(String(card.personal_spending_limit)); setPaymentDay(card.payment_day ? String(card.payment_day) : "");
+      }
+      setSetupStatus({ loading: false, saving: false, error: "", success: "" });
+    }
+    loadSetup();
+  }, []);
+
+  async function saveSetup(event) {
+    event.preventDefault();
+    const income = Number(salary); const minimum = Number(minimumGoal); const ideal = Number(idealGoal);
+    const bankLimit = Number(creditLimit); const personalLimit = Number(personalCardLimit); const payDay = Number(paymentDay);
+    if (!periodStart || !Number.isFinite(income) || income <= 0) return setSetupStatus((current) => ({ ...current, error: "Ingresa un monto principal mayor que cero y una fecha de inicio.", success: "" }));
+    if (minimum < 0 || ideal < minimum) return setSetupStatus((current) => ({ ...current, error: "La meta ideal debe ser igual o mayor que la meta mínima.", success: "" }));
+    if (hasCreditCard && (!Number.isFinite(bankLimit) || bankLimit <= 0 || !Number.isFinite(personalLimit) || personalLimit <= 0 || personalLimit > bankLimit)) return setSetupStatus((current) => ({ ...current, error: "El límite personal debe ser mayor que cero y no superar la línea total.", success: "" }));
+    if (hasCreditCard && (!Number.isInteger(payDay) || payDay < 1 || payDay > 31)) return setSetupStatus((current) => ({ ...current, error: "La fecha siempre a pagar debe ser un día entre 1 y 31.", success: "" }));
+    const supabase = createClient();
+    if (!supabase) return;
+    setSetupStatus((current) => ({ ...current, saving: true, error: "", success: "" }));
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return setSetupStatus({ loading: false, saving: false, success: "", error: "Tu sesión dejó de ser válida. Vuelve a iniciar sesión." });
+    const periodValues = { user_id: user.id, start_date: periodStart, opening_income: income, minimum_saving_goal: minimum, ideal_saving_goal: ideal, expected_next_pay_date: null };
+    const periodResult = periodId
+      ? await supabase.from("financial_periods").update(periodValues).eq("id", periodId).select("id").single()
+      : await supabase.from("financial_periods").insert(periodValues).select("id").single();
+    if (periodResult.error) return setSetupStatus({ loading: false, saving: false, success: "", error: "No pudimos guardar el periodo. Revisa los valores e inténtalo nuevamente." });
+    setPeriodId(periodResult.data.id);
+
+    const { data: storedCard } = cardId ? { data: { id: cardId } } : await supabase.from("credit_cards").select("id").eq("user_id", user.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (hasCreditCard) {
+      const cardValues = { user_id: user.id, credit_limit: bankLimit, personal_spending_limit: personalLimit, payment_day: payDay, is_active: true };
+      const cardResult = storedCard
+        ? await supabase.from("credit_cards").update(cardValues).eq("id", storedCard.id).select("id").single()
+        : await supabase.from("credit_cards").insert(cardValues).select("id").single();
+      if (cardResult.error) return setSetupStatus({ loading: false, saving: false, success: "", error: "El periodo se guardó, pero no pudimos guardar la tarjeta." });
+      setCardId(cardResult.data.id);
+    } else if (storedCard) {
+      const { error } = await supabase.from("credit_cards").update({ is_active: false }).eq("id", storedCard.id);
+      if (error) return setSetupStatus({ loading: false, saving: false, success: "", error: "El periodo se guardó, pero no pudimos desactivar la tarjeta." });
+      setCardId(null);
+    }
+    setSetupStatus({ loading: false, saving: false, error: "", success: "Planificación guardada correctamente." });
+    setTab("home");
+  }
 
   async function signOut() {
     const supabase = createClient();
@@ -89,23 +158,23 @@ export default function Home() {
         </header>
 
         {tab === "home" && <section className="screen">
-          {!finance.hasActivePeriod ? <div className="empty-dashboard">
+          {setupStatus.loading ? <div className="empty-dashboard"><div className="empty-icon" aria-hidden="true">…</div><h1>Cargando tu planificación</h1><p>Estamos consultando tu periodo y tu tarjeta de forma segura.</p></div> : !finance.hasActivePeriod ? <div className="empty-dashboard">
             <div className="empty-icon" aria-hidden="true">◎</div>
             <h1>Empieza tu primer periodo</h1>
-            <p>Aún no hay ingresos ni movimientos registrados. Confirma el ingreso que recibiste para calcular tu saldo, ahorro y límite diario.</p>
+            <p>Aún no hay un periodo configurado. Registra tu ingreso, fecha de inicio, metas de ahorro y, si corresponde, tu tarjeta.</p>
             <button className="primary" onClick={() => setTab("more")}>Configurar periodo</button>
           </div> : <>
           <div className={`hero status-${finance.status}`}>
             <div className="hero-heading"><span>Puedes gastar sin afectar tu meta ideal</span><span className={`badge ${finance.status}`}>{statusCopy[0]}</span></div>
             <strong className="hero-amount">{money.format(finance.spendableIdeal)}</strong>
-            <p>Saldo real: {money.format(finance.balance)}{nextPayDate ? ` · próximo pago estimado ${new Date(`${nextPayDate}T12:00:00`).toLocaleDateString("es-PE", { day: "numeric", month: "short" })}` : ""}</p>
+            <p>Saldo real: {money.format(finance.balance)} · periodo iniciado el {new Date(`${periodStart}T12:00:00`).toLocaleDateString("es-PE", { day: "numeric", month: "short" })}</p>
             <div className="progress"><span style={{ width: `${Math.min(100, (finance.projectedSaving / Math.max(1, idealGoal)) * 100)}%` }} /></div>
             <div className="hero-footer"><span>Ahorro proyectado: {money.format(finance.projectedSaving)}</span><span>Meta ideal: {money.format(idealGoal)}</span></div>
           </div>
 
           <div className="summary-grid">
-            <article className="summary-card"><span>Límite diario recomendado</span><strong>{finance.dailyLimit === null ? "Pendiente" : money.format(finance.dailyLimit)}</strong><small>{finance.remainingDays ? `Durante ${finance.remainingDays} días, sin tocar la meta ideal` : "Agrega la fecha estimada de tu próximo pago"}</small></article>
-            <button className="summary-card card-link" onClick={() => setTab("card")}><span>Deuda de tarjeta</span><strong>{money.format(finance.cardDebt)}</strong><small>Cupo disponible: {money.format(finance.cardAvailable)}</small></button>
+            <article className="summary-card"><span>Disponible sin afectar meta</span><strong>{money.format(finance.spendableIdeal)}</strong><small>Después de proteger tu meta ideal</small></article>
+            <button className="summary-card card-link" onClick={() => setTab(hasCreditCard ? "card" : "more")}><span>{hasCreditCard ? "Deuda de tarjeta" : "Tarjeta de crédito"}</span><strong>{hasCreditCard ? money.format(finance.cardDebt) : "Sin configurar"}</strong><small>{hasCreditCard ? `Disponible según tu límite: ${money.format(finance.personalCardAvailable)}` : "Puedes agregarla en planificación"}</small></button>
           </div>
           <button className="primary" onClick={() => setTab("register")}>＋ Registrar movimiento</button>
 
@@ -148,22 +217,34 @@ export default function Home() {
           {finance.hasActivePeriod ? <article className="traffic"><div><strong>Proyección: {money.format(finance.projectedSaving)}</strong><p>{statusCopy[1]}</p></div><div className={`ring ${finance.status}`}>{Math.round(Math.min(100, finance.projectedSaving / Math.max(1, idealGoal) * 100))}%</div></article> : <div className="empty-state compact"><p>Configura primero el ingreso del periodo para calcular el semáforo.</p></div>}
         </section>}
 
-        {tab === "card" && <section className="screen">
+        {tab === "card" && hasCreditCard && <section className="screen">
           <div className="section-title"><h1>Tarjeta de crédito</h1>{finance.cardDebt > 0 && <span className={`badge ${finance.cardDebt > 350 ? "red" : "green"}`}>{finance.cardDebt > 350 ? "Superó S/350" : "Uso controlado"}</span>}</div>
-          <article className="credit-card"><span>Cupo fijo</span><strong>{money.format(500)}</strong><div><p>Consumo actual<b>{money.format(finance.cardDebt)}</b></p><p>Cupo disponible<b>{money.format(finance.cardAvailable)}</b></p></div><div className="progress"><span style={{width: `${Math.min(100, finance.cardDebt / 5)}%`}} /></div><small>Recomendación: conservar entre S/200 y S/300 de cupo disponible.</small></article>
-          <div className="summary-grid"><article className="summary-card"><span>Fecha de cierre</span><strong>Sin registrar</strong><small>Se configurará cada mes</small></article><article className="summary-card"><span>Fecha de pago</span><strong>Sin registrar</strong><small>Se configurará cada mes</small></article></div>
+          <article className="credit-card"><span>Línea total de crédito</span><strong>{money.format(Number(creditLimit))}</strong><div><p>Consumo actual<b>{money.format(finance.cardDebt)}</b></p><p>Cupo bancario disponible<b>{money.format(finance.cardAvailable)}</b></p></div><div className="progress"><span style={{width: `${Math.min(100, finance.cardDebt / Math.max(1, Number(personalCardLimit)) * 100)}%`}} /></div><small>Límite personal: {money.format(Number(personalCardLimit))} · disponible para gastar: {money.format(finance.personalCardAvailable)}</small></article>
+          <div className="summary-grid"><article className="summary-card"><span>Fecha siempre a pagar</span><strong>Día {paymentDay}</strong><small>De cada mes</small></article><article className="summary-card"><span>Límite personal</span><strong>{money.format(Number(personalCardLimit))}</strong><small>{finance.personalCardAvailable > 0 ? `${money.format(finance.personalCardAvailable)} disponibles` : "Límite alcanzado"}</small></article></div>
           <button className="primary" onClick={() => { setForm({...form,type:"card_payment"}); setTab("register"); }}>Registrar pago de tarjeta</button>
         </section>}
 
         {tab === "more" && <section className="screen">
-          <h1>Planificación del periodo</h1><p className="lead">Ajusta estos valores cada vez que inicies un nuevo periodo. No son montos fijos.</p>
-          <div className="settings">
-            <label>Ingreso principal del periodo<input type="number" min="0" step="0.01" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="Ingresa el monto recibido" /></label>
-            <label>Meta mínima de ahorro<input type="number" min="0" step="0.01" value={minimumGoal} onChange={(e) => setMinimumGoal(Number(e.target.value))} /></label>
-            <label>Meta ideal de ahorro<input type="number" min={minimumGoal} step="0.01" value={idealGoal} onChange={(e) => setIdealGoal(Math.max(minimumGoal, Number(e.target.value)))} /></label>
-            <label>Próximo pago estimado<input type="date" value={nextPayDate} onChange={(e) => setNextPayDate(e.target.value)} /></label>
-          </div>
-          <p className="info">El límite diario se recalcula con tu ingreso confirmado, ingresos extra, gastos registrados, meta ideal y días restantes.</p>
+          <h1>Planificación del periodo</h1><p className="lead">Registra los valores reales de este periodo. Podrás actualizarlos cuando cambien.</p>
+          <form className="settings setup-form" onSubmit={saveSetup}>
+            <div className="settings-section"><span className="settings-kicker">PERIODO ACTUAL</span>
+              <label>Monto principal del periodo<input type="number" min="0.01" step="0.01" required value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="S/ 0.00" /></label>
+              <label>Fecha de inicio del periodo<input type="date" required value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} /></label>
+              <label>Meta mínima de ahorro<input type="number" min="0" step="0.01" required value={minimumGoal} onChange={(e) => setMinimumGoal(Number(e.target.value))} /></label>
+              <label>Meta ideal de ahorro<input type="number" min={minimumGoal} step="0.01" required value={idealGoal} onChange={(e) => setIdealGoal(Number(e.target.value))} /></label>
+            </div>
+            <div className="settings-section card-settings"><span className="settings-kicker">TARJETA DE CRÉDITO</span>
+              <div className="toggle-row"><div><strong>Tarjeta de crédito contratada</strong><span>Actívalo solo si actualmente tienes una.</span></div><button type="button" role="switch" aria-checked={hasCreditCard} className={`switch ${hasCreditCard ? "on" : ""}`} onClick={() => setHasCreditCard(!hasCreditCard)}><span /></button></div>
+              {hasCreditCard && <div className="conditional-fields">
+                <label>Línea total de crédito<input type="number" min="0.01" step="0.01" required value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="Monto otorgado por el banco" /><small>Es el cupo total que te dio el banco.</small></label>
+                <label>Límite personal de gasto<input type="number" min="0.01" max={creditLimit || undefined} step="0.01" required value={personalCardLimit} onChange={(e) => setPersonalCardLimit(e.target.value)} placeholder="Máximo que deseas utilizar" /><small>No puede superar tu línea total.</small></label>
+                <label>Fecha siempre a pagar<input type="number" min="1" max="31" step="1" required value={paymentDay} onChange={(e) => setPaymentDay(e.target.value)} placeholder="Ej. 25" /><small>Indica el día de cada mes, entre 1 y 31.</small></label>
+              </div>}
+            </div>
+            {setupStatus.error && <p className="form-error" role="alert">{setupStatus.error}</p>}{setupStatus.success && <p className="form-success" role="status">{setupStatus.success}</p>}
+            <button className="primary" type="submit" disabled={setupStatus.saving}>{setupStatus.saving ? "Guardando…" : periodId ? "Guardar cambios" : "Crear periodo"}</button>
+          </form>
+          <p className="info">Tu disponible se calcula después de proteger la meta ideal. La tarjeta se controla contra el límite personal que elegiste.</p>
         </section>}
 
         <nav aria-label="Navegación principal">

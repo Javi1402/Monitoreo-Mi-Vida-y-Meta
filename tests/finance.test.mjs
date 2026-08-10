@@ -6,11 +6,11 @@ const base = {
   salary: 1_000,
   minimumGoal: 300,
   idealGoal: 500,
-  nextPayDate: "2026-08-11",
-  today: new Date("2026-08-09T12:00:00Z"),
+  creditLimit: 2_000,
+  personalCardLimit: 500,
 };
 
-test("recalcula el límite diario con sueldo, extras, gastos y meta editable", () => {
+test("recalcula el saldo disponible con sueldo, extras, gastos y meta editable", () => {
   const result = calculateFinance({
     ...base,
     movements: [
@@ -21,8 +21,6 @@ test("recalcula el límite diario con sueldo, extras, gastos y meta editable", (
 
   assert.equal(result.balance, 900);
   assert.equal(result.spendableIdeal, 400);
-  assert.equal(result.remainingDays, 2);
-  assert.equal(result.dailyLimit, 200);
   assert.equal(result.status, "green");
 });
 
@@ -38,7 +36,8 @@ test("el pago de tarjeta reduce la deuda sin duplicar el gasto del periodo", () 
   assert.equal(result.expenses, 300);
   assert.equal(result.balance, 700);
   assert.equal(result.cardDebt, 180);
-  assert.equal(result.cardAvailable, 320);
+  assert.equal(result.cardAvailable, 1_820);
+  assert.equal(result.personalCardAvailable, 320);
 });
 
 test("clasifica la proyección con metas mínima e ideal variables", () => {
@@ -54,13 +53,9 @@ test("mantiene pendientes los cálculos diarios cuando no existe un periodo conf
     salary: "",
     minimumGoal: 300,
     idealGoal: 500,
-    nextPayDate: "",
     movements: [],
-    today: base.today,
   });
 
   assert.equal(result.hasActivePeriod, false);
-  assert.equal(result.remainingDays, null);
-  assert.equal(result.dailyLimit, null);
   assert.equal(result.cardDebt, 0);
 });
