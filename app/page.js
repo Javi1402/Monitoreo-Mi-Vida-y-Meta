@@ -45,6 +45,7 @@ export default function Home() {
   const router = useRouter();
   const [theme, setTheme] = useState("dark");
   const [tab, setTab] = useState("home");
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [salary, setSalary] = useState("");
   const [periodStart, setPeriodStart] = useState(todayInPeru());
   const [minimumGoal, setMinimumGoal] = useState(300);
@@ -60,6 +61,11 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({ type: "expense", amount: "", category: "", method: "", date: todayInPeru(), description: "" });
   const finance = useMemo(() => calculateFinance({ salary, minimumGoal, idealGoal, movements, creditLimit: hasCreditCard ? creditLimit : 0, personalCardLimit: hasCreditCard ? personalCardLimit : 0 }), [salary, minimumGoal, idealGoal, movements, hasCreditCard, creditLimit, personalCardLimit]);
+  const categoryMetrics = useMemo(() => categories.map((category) => {
+    const total = movements.filter((item) => item.type === "expense" && item.category === category).reduce((sum, item) => sum + item.amount, 0);
+    return { category, total, percentage: finance.expenses ? total / finance.expenses * 100 : 0 };
+  }).sort((first, second) => second.total - first.total), [movements, finance.expenses]);
+  const activeCategoryCount = categoryMetrics.filter((item) => item.total > 0).length;
 
   useEffect(() => {
     async function loadSetup() {
@@ -212,7 +218,18 @@ export default function Home() {
 
         {tab === "metrics" && <section className="screen">
           <div className="section-title"><h1>Gastos por categoría</h1>{finance.expenses > 0 && <span>{money.format(finance.expenses)} total</span>}</div>
-          {finance.expenses === 0 ? <div className="empty-state"><strong>Sin datos para mostrar</strong><p>Las métricas se calcularán después de registrar tus gastos reales.</p></div> : <div className="chart">{categories.slice(0,5).map((category, index) => { const total = movements.filter((item) => item.type === "expense" && item.category === category).reduce((sum,item) => sum + item.amount,0); const height = Math.max(12, finance.expenses ? total / finance.expenses * 100 : 0); return <div key={category} title={`${category}: ${money.format(total)}`}><span className={index % 2 ? "greenbar" : "bluebar"} style={{height: `${height}%`}} /><small>{category === "Aplicaciones y suscripciones" ? "Apps" : category}</small><em>{money.format(total)}</em></div>})}</div>}
+          {finance.expenses === 0 ? <div className="empty-state"><strong>Sin datos para mostrar</strong><p>Las métricas se calcularán después de registrar tus gastos reales.</p></div> : <>
+            <div className="chart">{categoryMetrics.slice(0,5).map((item, index) => <div key={item.category} title={`${item.category}: ${money.format(item.total)}`}><span className={index % 2 ? "greenbar" : "bluebar"} style={{height: `${Math.max(12, item.percentage)}%`}} /><small>{item.category === "Aplicaciones y suscripciones" ? "Apps" : item.category}</small><em>{money.format(item.total)}</em></div>)}</div>
+            <button type="button" className="metrics-expand" aria-expanded={showAllCategories} onClick={() => setShowAllCategories(!showAllCategories)}><span>{showAllCategories ? "Ocultar dashboard completo" : "Ver todas las categorías"}</span><b aria-hidden="true">{showAllCategories ? "−" : "+"}</b></button>
+            {showAllCategories && <section className="category-dashboard" aria-label="Dashboard completo de categorías">
+              <div className="metrics-overview"><article><span>Categorías con gastos</span><strong>{activeCategoryCount}</strong></article><article><span>Mayor categoría</span><strong>{categoryMetrics[0]?.category}</strong><small>{money.format(categoryMetrics[0]?.total || 0)}</small></article></div>
+              <div className="category-detail-list">{categoryMetrics.map((item, index) => <article key={item.category} className={item.total === 0 ? "is-empty" : ""}>
+                <div className={`category-rank ${index % 2 ? "greenbar" : "bluebar"}`}>{index + 1}</div>
+                <div className="category-detail"><div><strong>{item.category}</strong><span>{item.percentage.toFixed(1)}% del gasto total</span></div><div className="category-progress"><span className={index % 2 ? "greenbar" : "bluebar"} style={{ width: `${item.percentage}%` }} /></div></div>
+                <b>{money.format(item.total)}</b>
+              </article>)}</div>
+            </section>}
+          </>}
           <div className="section-title"><h2>Semáforo financiero</h2><span className={`badge ${finance.status}`}>{statusCopy[0]}</span></div>
           {finance.hasActivePeriod ? <article className="traffic"><div><strong>Proyección: {money.format(finance.projectedSaving)}</strong><p>{statusCopy[1]}</p></div><div className={`ring ${finance.status}`}>{Math.round(Math.min(100, finance.projectedSaving / Math.max(1, idealGoal) * 100))}%</div></article> : <div className="empty-state compact"><p>Configura primero el ingreso del periodo para calcular el semáforo.</p></div>}
         </section>}
