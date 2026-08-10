@@ -20,11 +20,11 @@ Abre `http://localhost:3000`.
 ## Estado actual
 
 - La aplicación inicia sin sueldo, movimientos, deuda ni fechas precargadas.
-- Los datos solo viven en el estado temporal del navegador y se reinician al recargar.
+- El periodo, la tarjeta y los movimientos se guardan por usuario en Supabase y se recuperan al volver a abrir la aplicación.
 - El registro y acceso utilizan correo y contraseña; las cuentas nuevas deben confirmar el correo.
 - La sesión se conserva automáticamente en web y en el dispositivo móvil.
 - Sin las variables públicas de Supabase, el acceso permanece bloqueado y muestra una explicación de configuración pendiente.
-- El despliegue piloto está publicado en Vercel, pero todavía no persiste movimientos en Supabase.
+- El despliegue piloto está publicado en Vercel y persiste los movimientos del periodo activo en Supabase.
 - La planificación del periodo sí guarda ingreso, fecha inicial, metas y configuración opcional de tarjeta en Supabase.
 
 ## Configurar autenticación

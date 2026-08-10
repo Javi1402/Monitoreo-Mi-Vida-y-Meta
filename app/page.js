@@ -28,6 +28,11 @@ const categories = [
 
 const initialMovements = [];
 
+const transactionTypes = { expense: "expense", extra: "extra_income", card_payment: "credit_card_payment" };
+const transactionTypesFromDatabase = { expense: "expense", extra_income: "extra", credit_card_payment: "card_payment" };
+const paymentMethods = { Efectivo: "cash", Yape: "yape", Plin: "plin", "Cuenta bancaria": "bank_account", "Tarjeta de crédito": "credit_card" };
+const paymentMethodsFromDatabase = { cash: "Efectivo", yape: "Yape", plin: "Plin", bank_account: "Cuenta bancaria", credit_card: "Tarjeta de crédito" };
+
 function todayInPeru() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Lima",
@@ -58,6 +63,8 @@ export default function Home() {
   const [cardId, setCardId] = useState(null);
   const [setupStatus, setSetupStatus] = useState({ loading: true, saving: false, error: "", success: "" });
   const [movements, setMovements] = useState(initialMovements);
+  const [categoryIds, setCategoryIds] = useState({});
+  const [movementSaving, setMovementSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [form, setForm] = useState({ type: "expense", amount: "", category: "", method: "", date: todayInPeru(), description: "" });
   const finance = useMemo(() => calculateFinance({ salary, minimumGoal, idealGoal, movements, creditLimit: hasCreditCard ? creditLimit : 0, personalCardLimit: hasCreditCard ? personalCardLimit : 0 }), [salary, minimumGoal, idealGoal, movements, hasCreditCard, creditLimit, personalCardLimit]);
@@ -71,17 +78,31 @@ export default function Home() {
     async function loadSetup() {
       const supabase = createClient();
       if (!supabase) return setSetupStatus((current) => ({ ...current, loading: false }));
-      const [{ data: period, error: periodError }, { data: card, error: cardError }] = await Promise.all([
+      const [{ data: period, error: periodError }, { data: card, error: cardError }, { data: storedCategories, error: categoriesError }] = await Promise.all([
         supabase.from("financial_periods").select("id,start_date,opening_income,minimum_saving_goal,ideal_saving_goal").eq("status", "open").maybeSingle(),
         supabase.from("credit_cards").select("id,credit_limit,personal_spending_limit,payment_day,is_active").eq("is_active", true).maybeSingle(),
+        supabase.from("categories").select("id,name").eq("type", "expense").eq("is_active", true),
       ]);
-      if (periodError || cardError) {
+      if (periodError || cardError || categoriesError) {
         setSetupStatus({ loading: false, saving: false, success: "", error: "No pudimos cargar tu planificación desde Supabase." });
         return;
       }
+      const idsByName = Object.fromEntries((storedCategories || []).map((category) => [category.name, category.id]));
+      const namesById = Object.fromEntries((storedCategories || []).map((category) => [category.id, category.name]));
+      setCategoryIds(idsByName);
       if (period) {
         setPeriodId(period.id); setPeriodStart(period.start_date); setSalary(String(period.opening_income));
         setMinimumGoal(Number(period.minimum_saving_goal)); setIdealGoal(Number(period.ideal_saving_goal));
+        const { data: storedMovements, error: movementsError } = await supabase.from("transactions").select("id,type,amount,category_id,payment_method,transaction_date,description,created_at").eq("period_id", period.id).order("transaction_date", { ascending: false }).order("created_at", { ascending: false });
+        if (movementsError) {
+          setSetupStatus({ loading: false, saving: false, success: "", error: "Cargamos tu periodo, pero no pudimos recuperar sus movimientos." });
+          return;
+        }
+        setMovements((storedMovements || []).map((movement) => ({
+          id: movement.id, type: transactionTypesFromDatabase[movement.type], amount: Number(movement.amount),
+          category: movement.category_id ? namesById[movement.category_id] : "", method: paymentMethodsFromDatabase[movement.payment_method] || "",
+          date: movement.transaction_date, description: movement.description || "",
+        })));
       }
       if (card) {
         setCardId(card.id); setHasCreditCard(true); setCreditLimit(String(card.credit_limit));
@@ -137,14 +158,33 @@ export default function Home() {
     router.refresh();
   }
 
-  function saveMovement(event) {
+  async function saveMovement(event) {
     event.preventDefault();
+    setNotice("");
     const amount = Number(form.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setNotice("Ingresa un monto mayor que cero.");
       return;
     }
-    setMovements((current) => [{ ...form, id: Date.now(), amount }, ...current]);
+    if (!periodId) return setNotice("Configura primero el periodo antes de registrar movimientos.");
+    if (!form.method) return setNotice("Selecciona un medio de pago.");
+    if (form.type === "expense" && !categoryIds[form.category]) return setNotice("Selecciona una categoría válida.");
+    const supabase = createClient();
+    if (!supabase) return setNotice("Supabase no está configurado.");
+    setMovementSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMovementSaving(false); return setNotice("Tu sesión dejó de ser válida. Vuelve a iniciar sesión."); }
+    const values = {
+      user_id: user.id, period_id: periodId, type: transactionTypes[form.type], amount,
+      category_id: form.type === "expense" ? categoryIds[form.category] : null,
+      payment_method: paymentMethods[form.method], transaction_date: form.date,
+      description: form.description.trim() || null,
+      credit_card_id: form.method === "Tarjeta de crédito" || form.type === "card_payment" ? cardId : null,
+    };
+    const { data: storedMovement, error } = await supabase.from("transactions").insert(values).select("id").single();
+    setMovementSaving(false);
+    if (error) return setNotice("No pudimos guardar el movimiento. Inténtalo nuevamente.");
+    setMovements((current) => [{ ...form, id: storedMovement.id, amount }, ...current]);
     setForm((current) => ({ ...current, amount: "", description: "" }));
     setNotice(form.type === "card_payment" ? "Pago registrado: redujo la deuda sin duplicar el gasto." : "Movimiento registrado correctamente.");
   }
@@ -200,14 +240,14 @@ export default function Home() {
             </div>
             <label>Monto<input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="S/ 0.00" /></label>
             {form.type === "expense" && <label>Categoría<select required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}><option value="" disabled>Selecciona una categoría</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
-            <label>{form.type === "extra" ? "Cuenta donde lo recibiste" : form.type === "card_payment" ? "Cuenta desde la que pagaste" : "Medio de pago"}<select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
+            <label>{form.type === "extra" ? "Cuenta donde lo recibiste" : form.type === "card_payment" ? "Cuenta desde la que pagaste" : "Medio de pago"}<select required value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
               <option value="" disabled>Selecciona una opción</option>{(form.type === "expense" ? ["Efectivo", "Yape", "Plin", "Cuenta bancaria", "Tarjeta de crédito"] : ["Yape", "Plin", "Cuenta bancaria"]).map((method) => <option key={method}>{method}</option>)}
             </select></label>
             <label>Fecha<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label>
             <label>{form.type === "extra" ? "Origen o descripción" : "Descripción opcional"}<input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={form.type === "extra" ? "Ej. trabajo adicional" : "Ej. almuerzo"} /></label>
             {form.type === "card_payment" && <p className="info">Este pago reducirá la deuda, pero no se registrará nuevamente como gasto.</p>}
             {notice && <p className="notice" role="status">{notice}</p>}
-            <button className="primary" type="submit">Guardar movimiento</button>
+            <button className="primary" type="submit" disabled={movementSaving}>{movementSaving ? "Guardando…" : "Guardar movimiento"}</button>
           </form>
         </section>}
 
