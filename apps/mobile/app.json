@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Monitoreo Vida y Meta",
+    "slug": "monitoreo-mi-vida-y-meta",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "mvm",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mvm.monitoreovidaymeta"
+    },
+    "android": {
+      "package": "com.mvm.monitoreovidaymeta",
+      "adaptiveIcon": { "backgroundColor": "#090b0a" }
+    },
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "router": { "origin": false }
+    }
+  }
+}

@@ -22,3 +22,8 @@ test("entrega una referencia segura para errores no reconocidos", () => {
   assert.match(result, /unexpected_failure/);
   assert.match(result, /Authentication → Logs/);
 });
+
+test("explica credenciales inválidas y correo pendiente", () => {
+  assert.match(getAuthErrorMessage({ code: "invalid_credentials" }, "login"), /contraseña no son correctos/);
+  assert.match(getAuthErrorMessage({ code: "email_not_confirmed" }, "login"), /confirmar tu correo/);
+});

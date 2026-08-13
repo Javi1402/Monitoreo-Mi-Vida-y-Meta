@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  let response = NextResponse.redirect(new URL(code ? "/" : "/login?error=missing_code", request.url));
+  const next = requestUrl.searchParams.get("next");
+  const isRecovery = next === "/restablecer-contrasena";
+  let response = NextResponse.redirect(new URL(code ? (isRecovery ? next : "/login?confirmed=1") : "/login?error=missing_code", request.url));
 
   if (!code) {
     return response;
@@ -29,6 +31,8 @@ export async function GET(request) {
 
   if (error) {
     response = NextResponse.redirect(new URL("/login?error=invalid_link", request.url));
+  } else if (!isRecovery) {
+    await supabase.auth.signOut();
   }
 
   return response;

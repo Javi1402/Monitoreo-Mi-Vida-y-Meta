@@ -3,3 +3,6 @@ node_modules
 .env*.local
 npm-debug.log*
 .DS_Store
+apps/mobile/.expo
+apps/mobile/dist
+apps/mobile/.env
